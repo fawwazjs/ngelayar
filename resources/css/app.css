@@ -1,0 +1,112 @@
+/* 
+ * NGELAYAR - Tailwind Directives
+ * Dark Mode default: html.class="dark"
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === Base Layer: Dark Mode Default (Estetika Laut Malam) === */
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  /* Default dark: body = slate-950 + text slate-100 */
+  body {
+    @apply bg-[#020617] text-slate-100 antialiased selection:bg-sky-500/30 selection:text-sky-200;
+    font-family: 'Figtree', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Scrollbar estetik dark */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-full hover:bg-slate-600;
+  }
+
+  /* Focus ring oceanic */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-sky-500 ring-offset-2 ring-offset-[#020617];
+  }
+}
+
+/* === Components Layer: Reusable NGELAYAR === */
+@layer components {
+  .ngelayar-card {
+    @apply bg-slate-800/80 backdrop-blur-md border border-slate-700/60 rounded-2xl shadow-lg shadow-black/20;
+  }
+
+  .ngelayar-btn-primary {
+    @apply bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 shadow-lg shadow-sky-500/20 hover:shadow-sky-500/30 focus:ring-sky-500;
+  }
+
+  .ngelayar-btn-ghost {
+    @apply bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl border border-slate-700 transition-colors duration-200;
+  }
+
+  .ngelayar-badge-fish-high {
+    @apply bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .ngelayar-badge-hazard-high {
+    @apply bg-red-500/20 text-red-300 border border-red-500/30 px-2.5 py-0.5 rounded-full text-xs font-medium animate-pulse;
+  }
+
+  /* Leaflet dark overrides */
+  .leaflet-container {
+    @apply bg-slate-900 font-sans;
+  }
+  .leaflet-control-zoom a,
+  .leaflet-control-layers {
+    @apply !bg-slate-800 !text-slate-200 !border-slate-700;
+  }
+  .leaflet-control-attribution {
+    @apply !bg-slate-900/80 !text-slate-400 backdrop-blur;
+  }
+}
+
+/* === Utilities: Animasi & Efek === */
+@layer utilities {
+  .text-ocean-gradient {
+    @apply bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent;
+  }
+  .bg-ocean-gradient {
+    @apply bg-gradient-to-br from-sky-600 via-cyan-500 to-teal-500;
+  }
+  .glass-dark {
+    @apply bg-slate-800/60 backdrop-blur-xl border border-slate-700/50;
+  }
+}
+
+/* === Leaflet marker custom (ZPPI & Hazard) === */
+.zppi-marker {
+  @apply w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-sm;
+  background: radial-gradient(circle, rgba(14,165,233,1) 0%, rgba(2,132,199,1) 100%);
+  box-shadow: 0 0 16px rgba(14,165,233,0.6), 0 2px 8px rgba(0,0,0,0.4);
+}
+.zppi-marker.prob-high {
+  background: radial-gradient(circle, rgba(14,165,233,1) 0%, rgba(14,165,233,1) 100%);
+  box-shadow: 0 0 20px rgba(14,165,233,0.8);
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+.zppi-marker.prob-mid {
+  background: radial-gradient(circle, rgba(234,179,8,1) 0%, rgba(202,138,4,1) 100%);
+  box-shadow: 0 0 14px rgba(234,179,8,0.6);
+}
+.zppi-marker.prob-low {
+  background: radial-gradient(circle, rgba(34,197,94,1) 0%, rgba(22,163,74,1) 100%);
+}
+
+.hazard-marker {
+  @apply w-9 h-9 rounded-full border-2 border-white flex items-center justify-center text-base shadow-xl;
+}
+.hazard-marker.level-extreme { background: #991b1b; box-shadow: 0 0 18px rgba(153,27,27,0.9); }
+.hazard-marker.level-high    { background: #ef4444; box-shadow: 0 0 16px rgba(239,68,68,0.7); animation: pulseGlow 1.5s infinite; }
+.hazard-marker.level-medium  { background: #f97316; box-shadow: 0 0 12px rgba(249,115,22,0.6); }
+.hazard-marker.level-low     { background: #facc15; color: #422006; box-shadow: 0 0 10px rgba(250,204,21,0.5); }
