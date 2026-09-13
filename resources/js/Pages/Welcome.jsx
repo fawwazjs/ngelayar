@@ -80,16 +80,16 @@ export default function Welcome({ appName = 'NGELAYAR' }) {
                   <div><strong className="text-white">Phase 2 — Migrations Spatial</strong><div className="text-slate-400">zppi_predictions POINT + hazard_warnings POINT + index SPATIAL — <em>selesai</em></div></div>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold shrink-0">3</span>
-                  <div><strong className="text-slate-200">Phase 3 — Backend API</strong><div className="text-slate-400">OceanDataController mock + ML plug-and-play — <em>menunggu konfirmasi</em></div></div>
+                  <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+                  <div><strong className="text-white">Phase 3 — Backend API</strong><div className="text-slate-400">OceanDataController GeoJSON + ML plug-and-play fallback — <em>selesai</em></div></div>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold shrink-0">4</span>
-                  <div><strong className="text-slate-200">Phase 4 — Frontend Map</strong><div className="text-slate-400">NgelayarMap.jsx Leaflet + Layer Controls ZPPI/Hazard</div></div>
+                  <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+                  <div><strong className="text-white">Phase 4 — Frontend Map</strong><div className="text-slate-400">NgelayarMap.jsx Leaflet + Layer Controls ZPPI/Hazard — <em>selesai</em></div></div>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold shrink-0">5</span>
-                  <div><strong className="text-slate-200">Phase 5 — PWA Offline</strong><div className="text-slate-400">vite-plugin-pwa cache tiles & API 24 jam</div></div>
+                  <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+                  <div><strong className="text-white">Phase 5 — PWA Offline</strong><div className="text-slate-400">vite-plugin-pwa cache tiles &amp; API 24 jam — <em>selesai</em></div></div>
                 </li>
               </ol>
 

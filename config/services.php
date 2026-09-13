@@ -35,9 +35,12 @@ return [
     'ml' => [
         'url' => env('ML_SERVICE_URL', 'http://localhost:8001'),
         'key' => env('ML_SERVICE_API_KEY', null),
-        'timeout' => env('ML_SERVICE_TIMEOUT', 10),
-        // Ganti 'enabled' => true saat model siap, controller akan otomatis pakai Http::get live
         'enabled' => env('ML_ENABLED', false),
+    ],
+
+    // === CARTO.com Map Service ===
+    'carto' => [
+        'api_key' => env('CARTO_API_KEY'),
     ],
 
 ];

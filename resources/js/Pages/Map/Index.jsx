@@ -7,8 +7,7 @@ import { Head, Link } from '@inertiajs/react';
 import NgelayarMap from '@/Components/Map/NgelayarMap';
 
 export default function MapIndex() {
-  // Fokus default: Laut Jawa (-6.2,106.8) zoom 6 agar terlihat Jakarta—Bali
-  // User bisa pan/zoom bebas; tile dark dari Carto
+  // Fokus default: perairan Kabupaten Gresik, Jawa Timur.
   return (
     <>
       <Head title="Peta ZPPI & Hazard" />
@@ -27,7 +26,7 @@ export default function MapIndex() {
                 <span className="sm:hidden font-bold text-white">NGELAYAR</span>
               </Link>
               <span className="hidden md:inline-flex items-center px-2.5 py-1 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 text-xs">
-                🌊 Peta Live — ZPPI + Hazard
+                🌊 Gresik NOAA Pipeline
               </span>
             </div>
 
@@ -62,8 +61,8 @@ export default function MapIndex() {
             <div>
               <h2 className="text-lg font-semibold text-white">Peta Zona Ikan & Bahaya Laut</h2>
               <p className="text-xs text-slate-400">
-                Data mock GeoJSON dari <code className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300">GET /api/v1/ocean-data/*</code> — plug-and-play ke ML Python (lihat TODO di controller).
-                Tile di-cache 30 hari, API di-cache 24 jam (PWA offline).
+                Fokus wilayah: perairan Kabupaten Gresik. Endpoint ZPPI/Hazard masih demo sampai model dan label tangkapan tersedia;
+                status dataset NOAA dibaca dari <code className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300">GET /api/v1/ocean-data/noaa-status</code>.
               </p>
             </div>
             <div className="flex items-center gap-2 text-[11px]">
@@ -73,36 +72,41 @@ export default function MapIndex() {
           </div>
 
           {/* The Map */}
-          <NgelayarMap initialCenter={[-6.2, 106.8]} initialZoom={6} />
+          <NgelayarMap initialCenter={[-6.475, 112.725]} initialZoom={8} />
 
-          {/* Info cards */}
-          <div className="mt-6 grid md:grid-cols-3 gap-4 text-xs leading-relaxed">
-            <div className="ngelayar-card p-4">
-              <h4 className="font-semibold text-white">🔌 Plug-and-play ML</h4>
-              <p className="mt-1 text-slate-400">
-                <code className="px-1 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300">OceanDataController@zppi</code> punya blok <code className="px-1 py-0.5 rounded bg-black/30">TODO: ML INTEGRATION</code> — tinggal uncomment <code className="px-1 py-0.5 rounded bg-black/30">Http::get(env('ML_SERVICE_URL').'/api/predict/zppi')</code>.
-                Format mock sudah GeoJSON, jadi frontend tidak perlu diubah.
+          {/* Info cards (Naik tepat di bawah peta & sidebar) */}
+          <div className="mt-5 grid md:grid-cols-3 gap-4 text-xs leading-relaxed">
+            <div className="ngelayar-card p-4 hover:border-sky-500/40 transition-colors">
+              <h4 className="font-semibold text-white flex items-center gap-2">
+                <span>🔌</span> Plug-and-play ML
+              </h4>
+              <p className="mt-1.5 text-slate-400">
+                <code className="px-1 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300">OceanDataController@zppi</code> mengembalikan titik GeoJSON.
+                Tinggal hubungkan ke model Python/FastAPI saat dataset final & label tangkapan siap.
               </p>
             </div>
-            <div className="ngelayar-card p-4">
-              <h4 className="font-semibold text-white">📴 Offline-first (PWA)</h4>
-              <p className="mt-1 text-slate-400">
-                <code className="px-1 py-0.5 rounded bg-slate-900 border border-slate-700">vite-plugin-pwa</code> workbox: <code className="px-1 py-0.5 rounded bg-black/30">NetworkFirst 5s timeout</code> untuk API, <code className="px-1 py-0.5 rounded bg-black/30">CacheFirst 500 tiles</code> untuk OSM/Carto.
-                Ditambah <code className="px-1 py-0.5 rounded bg-black/30">localStorage ngelayar_last_*</code> fallback saat Service Worker belum siap.
+            <div className="ngelayar-card p-4 hover:border-emerald-500/40 transition-colors">
+              <h4 className="font-semibold text-white flex items-center gap-2">
+                <span>📴</span> Offline-first (PWA)
+              </h4>
+              <p className="mt-1.5 text-slate-400">
+                <code className="px-1 py-0.5 rounded bg-slate-900 border border-slate-700">vite-plugin-pwa</code> workbox: <code className="px-1 py-0.5 rounded bg-black/30">NetworkFirst 5s</code> untuk API, <code className="px-1 py-0.5 rounded bg-black/30">CacheFirst 500 tiles</code> untuk OSM/Carto + fallback <code className="px-1 py-0.5 rounded bg-black/30">localStorage</code>.
               </p>
             </div>
-            <div className="ngelayar-card p-4">
-              <h4 className="font-semibold text-white">🗄️ MySQL POINT</h4>
-              <p className="mt-1 text-slate-400">
+            <div className="ngelayar-card p-4 hover:border-cyan-500/40 transition-colors">
+              <h4 className="font-semibold text-white flex items-center gap-2">
+                <span>🗄️</span> MySQL POINT Spatial
+              </h4>
+              <p className="mt-1.5 text-slate-400">
                 Koordinat disimpan sebagai <code className="px-1 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300">POINT(lng lat)</code> + <code className="px-1 py-0.5 rounded bg-slate-900 border border-slate-700">SPATIAL INDEX</code>.
-                Query radius pakai <code className="px-1 py-0.5 rounded bg-black/30">ST_Distance_Sphere()</code> — cepat untuk nelayan cari zona &lt;20km.
+                Query radius pakai <code className="px-1 py-0.5 rounded bg-black/30">ST_Distance_Sphere()</code> — cepat untuk nelayan &lt;20km.
               </p>
             </div>
           </div>
         </main>
 
         <footer className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-500">
-          NGELAYAR © 2026 — Dark first, offline first. Data mock untuk demo — hubungkan ML untuk live.
+          NGELAYAR © 2026 — Dark first, offline first. Demo Gresik sekarang dipisahkan dari status data NOAA.
         </footer>
       </div>
     </>

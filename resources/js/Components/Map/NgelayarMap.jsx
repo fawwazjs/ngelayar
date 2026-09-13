@@ -20,6 +20,7 @@ import {
     CircleMarker,
     Marker,
     Popup,
+    Rectangle,
     useMap,
     ZoomControl,
 } from 'react-leaflet';
@@ -98,9 +99,29 @@ function Recenter({ center }) {
     return null;
 }
 
+function MapAutoSizer() {
+    const map = useMap();
+
+    useEffect(() => {
+        const container = map.getContainer();
+        const invalidate = () => map.invalidateSize({ animate: false });
+        const observer = new ResizeObserver(invalidate);
+
+        observer.observe(container);
+        const timers = [0, 150, 400].map((delay) => window.setTimeout(invalidate, delay));
+
+        return () => {
+            observer.disconnect();
+            timers.forEach((timer) => window.clearTimeout(timer));
+        };
+    }, [map]);
+
+    return null;
+}
+
 export default function NgelayarMap({
-    initialCenter = [-6.2, 106.8], // Jakarta Bay default (fokus nelayan Jawa)
-    initialZoom = 6,
+    initialCenter = [-6.475, 112.725],
+    initialZoom = 8,
     apiBase = '/api/v1/ocean-data',
 }) {
     const [zppiFeatures, setZppiFeatures] = useState([]);
@@ -112,6 +133,7 @@ export default function NgelayarMap({
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
     const [lastUpdated, setLastUpdated] = useState(null);
     const [dataSource, setDataSource] = useState(null); // mock | db-cache | ml-live
+    const [noaaStatus, setNoaaStatus] = useState(null);
     const [tile, setTile] = useState('dark'); // dark | light | satellite
     const [filterProb, setFilterProb] = useState(0.0); // minimal probability
 
@@ -172,9 +194,20 @@ export default function NgelayarMap({
         }
     }, [apiBase]);
 
+    const fetchNoaaStatus = useCallback(async () => {
+        try {
+            const response = await axios.get(`${apiBase}/noaa-status`, { timeout: 8000 });
+            setNoaaStatus(response.data?.data || null);
+        } catch (err) {
+            console.warn('Ngelayar NOAA status gagal dimuat', err);
+            setNoaaStatus(null);
+        }
+    }, [apiBase]);
+
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+        fetchNoaaStatus();
+    }, [fetchData, fetchNoaaStatus]);
 
     // Filtered ZPPI by prob
     const filteredZppi = useMemo(() => {
@@ -200,23 +233,29 @@ export default function NgelayarMap({
         return c;
     }, [hazardFeatures]);
 
-    // Tiles
+    // Tiles (Esri Dark Gray Base sebagai default dark mode bebas watermark + alternatif Carto & OSM)
     const tileUrl = useMemo(() => {
-        if (tile === 'dark') return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        if (tile === 'dark') return 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+        if (tile === 'carto') return 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?v=clean2026';
         if (tile === 'light') return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
         return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
     }, [tile]);
     const tileAttribution = tile === 'dark'
-        ? '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a> dark'
-        : '&copy; OpenStreetMap contributors';
+        ? '&copy; <a href="https://www.esri.com/">Esri</a> Dark Canvas'
+        : tile === 'carto'
+        ? '&copy; <a href="https://carto.com/">CARTO</a> dark'
+        : tile === 'light'
+        ? '&copy; OpenStreetMap contributors'
+        : '&copy; Esri World Imagery';
+    const gresikBounds = [[-7.35, 112.35], [-5.60, 113.10]];
 
     return (
-        <div className="flex flex-col lg:flex-row gap-4 w-full">
-            {/* === MAP === */}
-            <div className="flex-1 relative rounded-2xl overflow-hidden border border-slate-700/60 shadow-xl shadow-black/30 bg-slate-900" style={{ minHeight: '540px' }}>
-                {/* Top bar overlay */}
-                <div className="absolute top-3 left-3 right-3 z-[400] flex flex-wrap gap-2 items-center justify-between pointer-events-none">
-                    <div className="flex gap-2 pointer-events-auto">
+        <div className="flex flex-col lg:flex-row gap-5 w-full items-start">
+            {/* === MAP SHELL === */}
+            <div className="flex-1 relative rounded-2xl overflow-hidden border border-slate-700/60 shadow-xl shadow-black/30 bg-slate-900 h-[520px] sm:h-[600px] lg:h-[700px] min-h-[480px] w-full ngelayar-map-shell">
+                {/* Top-left bar overlay (constrained so it never overlaps Leaflet LayersControl on top-right) */}
+                <div className="absolute top-3 left-3 z-[400] max-w-[calc(100%-140px)] flex flex-wrap gap-2 items-center pointer-events-none">
+                    <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border backdrop-blur ${isOffline ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${isOffline ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} />
                             {isOffline ? 'Offline — cache' : 'Online — live'}
@@ -226,17 +265,17 @@ export default function NgelayarMap({
                                 source: {dataSource} {lastUpdated && `• ${new Date(lastUpdated).toLocaleTimeString('id-ID')}`}
                             </span>
                         )}
-                    </div>
-                    <div className="flex gap-1.5 pointer-events-auto">
-                        {['dark', 'light', 'satellite'].map((t) => (
-                            <button
-                                key={t}
-                                onClick={() => setTile(t)}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium border backdrop-blur transition ${tile === t ? 'bg-sky-500 text-white border-sky-400' : 'bg-slate-800/80 text-slate-300 border-slate-600 hover:bg-slate-700'}`}
-                            >
-                                {t === 'dark' ? '🌙 Dark' : t === 'light' ? '☀️ Light' : '🛰️ Sat'}
-                            </button>
-                        ))}
+                        <div className="inline-flex gap-1 p-0.5 rounded-full bg-slate-900/80 border border-slate-700/80 backdrop-blur">
+                            {['dark', 'carto', 'light', 'satellite'].map((t) => (
+                                <button
+                                    key={t}
+                                    onClick={() => setTile(t)}
+                                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition ${tile === t ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}
+                                >
+                                    {t === 'dark' ? '🌙 Dark' : t === 'carto' ? '🌌 Carto' : t === 'light' ? '☀️ Light' : '🛰️ Sat'}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
@@ -255,13 +294,18 @@ export default function NgelayarMap({
                     center={initialCenter}
                     zoom={initialZoom}
                     zoomControl={false}
-                    style={{ height: '540px', width: '100%', background: '#0f172a' }}
+                    style={{ height: '100%', width: '100%', background: '#0f172a' }}
                     preferCanvas
                 >
                     <TileLayer url={tileUrl} attribution={tileAttribution} maxZoom={18} />
+                    <Rectangle
+                        bounds={gresikBounds}
+                        pathOptions={{ color: '#38bdf8', weight: 2, opacity: 0.9, fillOpacity: 0.04, dashArray: '6 6' }}
+                    />
 
                     <ZoomControl position="bottomright" />
                     <Recenter center={initialCenter} />
+                    <MapAutoSizer />
 
                     <LayersControl position="topright" collapsed={false}>
                         {/* ZPPI Layer */}
@@ -371,7 +415,7 @@ export default function NgelayarMap({
             </div>
 
             {/* === SIDEBAR CONTROLS === */}
-            <div className="w-full lg:w-[340px] shrink-0 flex flex-col gap-4">
+            <div className="w-full lg:w-[350px] shrink-0 flex flex-col gap-4 lg:max-h-[700px] lg:overflow-y-auto pr-1">
                 {/* Layer toggles */}
                 <div className="ngelayar-card p-4">
                     <h3 className="font-semibold text-white flex items-center gap-2 text-sm">
@@ -399,6 +443,37 @@ export default function NgelayarMap({
                             </span>
                             <input type="checkbox" checked={showHazard} onChange={(e) => setShowHazard(e.target.checked)} className="w-4 h-4 rounded accent-red-500" />
                         </label>
+                    </div>
+
+                    {/* Tampilan Map (Basemap Selector) */}
+                    <div className="mt-4 pt-4 border-t border-slate-700/60">
+                        <label className="text-xs font-semibold tracking-wider uppercase text-slate-400 block mb-2.5">Tampilan Map (Basemap)</label>
+                        <div className="space-y-2 text-xs">
+                            {[
+                                { id: 'dark', icon: '🌙', title: 'Dark (Esri Dark Canvas)', sub: 'Default — bebas watermark' },
+                                { id: 'carto', icon: '🌌', title: 'Carto (CartoDB Dark Matter)', sub: 'Alternatif dark basemap' },
+                                { id: 'light', icon: '☀️', title: 'Light (OpenStreetMap Light)', sub: 'Terang / kontras tinggi' },
+                                { id: 'satellite', icon: '🛰️', title: 'Sat (Esri World Imagery)', sub: 'Satelit resolusi tinggi' },
+                            ].map((item) => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => setTile(item.id)}
+                                    className={`w-full text-left p-2 rounded-xl border transition flex items-center justify-between gap-2 ${tile === item.id ? 'bg-sky-500/20 border-sky-500/80 text-sky-200 shadow-sm' : 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:bg-slate-800'}`}
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <span className="text-base">{item.icon}</span>
+                                        <div>
+                                            <div className="font-semibold text-white text-xs">{item.title}</div>
+                                            <div className="text-[10px] text-slate-400">{item.sub}</div>
+                                        </div>
+                                    </div>
+                                    {tile === item.id && (
+                                        <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Prob filter */}
@@ -451,6 +526,43 @@ export default function NgelayarMap({
                 {/* Offline info */}
                 <div className="rounded-2xl bg-sky-500/10 border border-sky-500/20 p-3 text-xs leading-relaxed text-sky-200">
                     <strong className="text-sky-300">💡 Offline-first:</strong> Data terakhir disimpan 24 jam di <code className="px-1 py-0.5 rounded bg-black/30">localStorage</code> & Service Worker tile cache (30 hari). Saat di laut tanpa sinyal, peta & ZPPI terakhir tetap bisa dibuka.
+                </div>
+
+                <div className="ngelayar-card p-4 text-xs leading-relaxed">
+                    <h4 className="font-semibold text-white">Status Dataset NOAA</h4>
+                    {noaaStatus ? (
+                        <div className="mt-3 space-y-2 text-slate-300">
+                            <div className="flex justify-between gap-3">
+                                <span className="text-slate-400">Wilayah</span>
+                                <span className="text-right">Gresik</span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <span className="text-slate-400">BBox</span>
+                                <span className="text-right">{noaaStatus.bbox?.min_latitude}..{noaaStatus.bbox?.max_latitude}, {noaaStatus.bbox?.min_longitude}..{noaaStatus.bbox?.max_longitude}</span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <span className="text-slate-400">SST NetCDF</span>
+                                <span className={noaaStatus.datasets?.sst?.downloaded_file?.exists ? 'text-emerald-300' : 'text-amber-300'}>
+                                    {noaaStatus.datasets?.sst?.downloaded_file?.exists ? 'tersedia' : 'belum ada'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <span className="text-slate-400">Chl-a chunks</span>
+                                <span>{noaaStatus.datasets?.chlorophyll_a?.monthly_chunks_downloaded ?? 0}/24</span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <span className="text-slate-400">Final ML CSV</span>
+                                <span className={noaaStatus.outputs?.final_csv?.exists ? 'text-emerald-300' : 'text-amber-300'}>
+                                    {noaaStatus.outputs?.final_csv?.exists ? 'siap' : 'belum siap'}
+                                </span>
+                            </div>
+                            <p className="pt-2 border-t border-slate-700/60 text-[11px] text-slate-400">
+                                {noaaStatus.ml_readiness?.reason}
+                            </p>
+                        </div>
+                    ) : (
+                        <p className="mt-2 text-slate-400">Status pipeline NOAA belum tersedia.</p>
+                    )}
                 </div>
             </div>
         </div>

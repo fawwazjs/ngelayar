@@ -28,7 +28,6 @@
     </script>
 
     <!-- PWA: manifest akan di-inject oleh vite-plugin-pwa -->
-    @routes
     @viteReactRefresh
     @vite(['resources/css/app.css', 'resources/js/app.jsx'])
     @inertiaHead

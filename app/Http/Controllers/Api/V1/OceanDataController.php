@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 
 /**
  * NGELAYAR — OceanDataController
@@ -53,42 +54,36 @@ class OceanDataController extends Controller
         $radiusKm = $request->float('radius_km', 50);
         $probMin = $request->float('prob_min', 0.0);
 
-        // ============================================================
-        // TODO: ML INTEGRATION — PLUG-AND-PLAY (ganti mock di bawah)
-        // ============================================================
-        // Uncomment saat ML Python siap. Endpoint Python contoh:
-        //   GET {ML_SERVICE_URL}/api/predict/zppi?lat={lat}&lng={lng}&radius_km={radius}
-        // Response Python diharapkan: { features: [ {lat, lng, probability, sst, chlorophyll} ] }
-        //
-        // try {
-        //     $mlUrl = rtrim(config('services.ml.url', env('ML_SERVICE_URL', 'http://localhost:8001')), '/');
-        //     $mlKey = config('services.ml.key', env('ML_SERVICE_API_KEY'));
-        //     $timeout = (int) config('services.ml.timeout', 10);
-        //
-        //     $response = Http::timeout($timeout)
-        //         ->when($mlKey, fn($http) => $http->withToken($mlKey))
-        //         ->withHeaders(['Accept' => 'application/json'])
-        //         ->get("{$mlUrl}/api/predict/zppi", [
-        //             'lat' => $lat,
-        //             'lng' => $lng,
-        //             'radius_km' => $radiusKm,
-        //             'prob_min' => $probMin,
-        //         ]);
-        //
-        //     if ($response->successful()) {
-        //         $mlData = $response->json();
-        //         // Opsional: simpan ke DB untuk cache/history
-        //         // foreach ($mlData['features'] as $f) {
-        //         //     ZppiPrediction::createWithCoordinate($f['lat'], $f['lng'], $f['probability'], $f['metadata'] ?? null);
-        //         // }
-        //         // return response()->json($this->formatAsGeoJson($mlData, 'zppi'))->header('X-Data-Source', 'ml-live');
-        //     }
-        //     Log::warning('ML ZPPI fallback to mock', ['status' => $response->status(), 'body' => $response->body()]);
-        // } catch (\Throwable $e) {
-        //     Log::error('ML ZPPI error, using mock', ['error' => $e->getMessage()]);
-        // }
-        // // Jika gagal, lanjut ke MOCK di bawah (graceful fallback untuk nelayan offline)
-        // ============================================================
+        if (config('services.ml.enabled')) {
+            try {
+                $mlUrl = rtrim(config('services.ml.url', env('ML_SERVICE_URL', 'http://localhost:8001')), '/');
+                $mlKey = config('services.ml.key', env('ML_SERVICE_API_KEY'));
+                $timeout = (int) config('services.ml.timeout', 10);
+
+                $response = Http::timeout($timeout)
+                    ->when($mlKey, fn($http) => $http->withToken($mlKey))
+                    ->acceptJson()
+                    ->get("{$mlUrl}/api/predict/zppi", [
+                        'lat' => $lat,
+                        'lng' => $lng,
+                        'radius_km' => $radiusKm,
+                        'prob_min' => $probMin,
+                    ]);
+
+                if ($response->successful()) {
+                    $features = $this->normalizeZppiMlFeatures($response->json());
+                    return $this->geoJsonResponse($features, 'zppi', 'ml-live', [
+                        'ml_service_url' => $mlUrl,
+                        'radius_km' => $radiusKm,
+                        'prob_min' => $probMin,
+                    ]);
+                }
+
+                Log::warning('ML ZPPI fallback', ['status' => $response->status(), 'body' => $response->body()]);
+            } catch (\Throwable $e) {
+                Log::error('ML ZPPI error, fallback enabled', ['error' => $e->getMessage()]);
+            }
+        }
 
         // --- Coba ambil dari DB dulu jika ada data real (opsional, bisa dihapus jika hanya mock) ---
         // Jika DB punya data dalam radius & prob_min, kembalikan DB sebagai "live cache" sebelum fallback mock.
@@ -148,8 +143,8 @@ class OceanDataController extends Controller
             }));
         }
 
-        return $this->geoJsonResponse($mockFeatures, 'zppi', 'mock', [
-            'note' => 'Mock data — ganti dengan ML API saat siap (lihat TODO di controller).',
+        return $this->geoJsonResponse($mockFeatures, 'zppi', 'demo-gresik', [
+            'note' => 'Demo ZPPI wilayah Gresik. Ini bukan hasil model ML operasional dan bukan klaim lokasi ikan.',
             'ml_service_url' => config('services.ml.url'),
         ]);
     }
@@ -176,22 +171,37 @@ class OceanDataController extends Controller
         $level = $request->string('level')->toString();
         $activeOnly = $request->boolean('active_only', true);
 
-        // ============================================================
-        // TODO: ML / BMKG INTEGRATION — PLUG-AND-PLAY
-        // ============================================================
-        // Contoh BMKG API atau ML hazard model:
-        // $mlUrl = rtrim(config('services.ml.url'), '/');
-        // $response = Http::timeout(10)->get("{$mlUrl}/api/predict/hazard", [
-        //     'lat' => $lat, 'lng' => $lng, 'radius_km' => $radiusKm,
-        // ]);
-        // if ($response->successful()) {
-        //     $mlData = $response->json();
-        //     // Simpan ke hazard_warnings untuk cache
-        //     // foreach ($mlData['warnings'] as $w) { HazardWarning::createWithCoordinate(...); }
-        //     // return $this->formatAsGeoJson($mlData, 'hazard');
-        // }
-        // Fallback ke mock/DB di bawah jika ML/BMKG gagal.
-        // ============================================================
+        if (config('services.ml.enabled')) {
+            try {
+                $mlUrl = rtrim(config('services.ml.url', env('ML_SERVICE_URL', 'http://localhost:8001')), '/');
+                $mlKey = config('services.ml.key', env('ML_SERVICE_API_KEY'));
+                $timeout = (int) config('services.ml.timeout', 10);
+
+                $response = Http::timeout($timeout)
+                    ->when($mlKey, fn($http) => $http->withToken($mlKey))
+                    ->acceptJson()
+                    ->get("{$mlUrl}/api/predict/hazard", [
+                        'lat' => $lat,
+                        'lng' => $lng,
+                        'radius_km' => $radiusKm,
+                        'level' => $level ?: null,
+                        'active_only' => $activeOnly,
+                    ]);
+
+                if ($response->successful()) {
+                    $features = $this->normalizeHazardMlFeatures($response->json());
+                    return $this->geoJsonResponse($features, 'hazard', 'ml-live', [
+                        'ml_service_url' => $mlUrl,
+                        'level' => $level ?: 'all',
+                        'active_only' => $activeOnly,
+                    ]);
+                }
+
+                Log::warning('ML Hazard fallback', ['status' => $response->status(), 'body' => $response->body()]);
+            } catch (\Throwable $e) {
+                Log::error('ML Hazard error, fallback enabled', ['error' => $e->getMessage()]);
+            }
+        }
 
         // --- Coba DB dulu (hazard aktif) ---
         try {
@@ -228,8 +238,98 @@ class OceanDataController extends Controller
             }));
         }
 
-        return $this->geoJsonResponse($mockFeatures, 'hazard', 'mock', [
-            'note' => 'Mock hazard — hubungkan ke BMKG/ML API (TODO di controller).',
+        return $this->geoJsonResponse($mockFeatures, 'hazard', 'demo-gresik', [
+            'note' => 'Demo hazard wilayah Gresik — hubungkan ke BMKG/ML API untuk operasional.',
+        ]);
+    }
+
+    /**
+     * GET /api/v1/ocean-data/noaa-status
+     *
+     * Status artefak pipeline NOAA lokal. Endpoint ini tidak mengklaim hasil
+     * prediksi ZPPI; ia hanya membantu frontend menampilkan kesiapan data.
+     */
+    public function noaaStatus(): JsonResponse
+    {
+        $basePath = base_path('ngelayar_outputs');
+        $rawPath = "{$basePath}/raw";
+        $sstPath = "{$rawPath}/noaa_jplMURSST41mday_gresik_2024_2025.nc";
+        $chlCombinedPath = "{$rawPath}/noaa_noaacwN20VIIRSchlaDaily_gresik_2024_2025.nc";
+        $finalCsvPath = "{$basePath}/ngelayar_gresik_oceanographic_2025.csv";
+        $finalNcPath = "{$basePath}/ngelayar_gresik_oceanographic_2025.nc";
+        $reportPath = "{$basePath}/ngelayar_gresik_data_quality_report.md";
+        $chlChunkDir = "{$rawPath}/chlorophyll_monthly_chunks";
+
+        $fileMeta = fn(string $path) => [
+            'exists' => File::exists($path),
+            'size_bytes' => File::exists($path) ? File::size($path) : null,
+            'updated_at' => File::exists($path) ? date(DATE_ATOM, File::lastModified($path)) : null,
+            'path' => str_replace(base_path() . DIRECTORY_SEPARATOR, '', $path),
+        ];
+
+        $chlorophyllChunks = File::isDirectory($chlChunkDir)
+            ? collect(File::files($chlChunkDir))
+                ->filter(fn($file) => str_ends_with($file->getFilename(), '.nc'))
+                ->map(fn($file) => [
+                    'file' => $file->getFilename(),
+                    'size_bytes' => $file->getSize(),
+                    'updated_at' => date(DATE_ATOM, $file->getMTime()),
+                ])
+                ->values()
+                ->all()
+            : [];
+
+        $finalReady = File::exists($finalCsvPath) && File::exists($finalNcPath);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'study_area' => 'Perairan Kabupaten Gresik, Jawa Timur',
+                'bbox' => [
+                    'min_latitude' => -7.35,
+                    'max_latitude' => -5.60,
+                    'min_longitude' => 112.35,
+                    'max_longitude' => 113.10,
+                ],
+                'period' => [
+                    'start' => '2024-01-01',
+                    'end' => '2025-12-31',
+                ],
+                'datasets' => [
+                    'sst' => [
+                        'dataset_id' => 'jplMURSST41mday',
+                        'variable' => 'sst',
+                        'unit' => 'degree_C',
+                        'info_url' => 'https://erddap.marine.usf.edu/erddap/info/jplMURSST41mday/index.html',
+                        'downloaded_file' => $fileMeta($sstPath),
+                    ],
+                    'chlorophyll_a' => [
+                        'dataset_id' => 'noaacwN20VIIRSchlaDaily',
+                        'variable' => 'chlor_a',
+                        'unit' => 'mg m^-3',
+                        'info_url' => 'https://coastwatch.noaa.gov/erddap/info/noaacwN20VIIRSchlaDaily/index.html',
+                        'combined_file' => $fileMeta($chlCombinedPath),
+                        'monthly_chunks_downloaded' => count($chlorophyllChunks),
+                        'monthly_chunks' => $chlorophyllChunks,
+                    ],
+                ],
+                'outputs' => [
+                    'final_csv' => $fileMeta($finalCsvPath),
+                    'final_netcdf' => $fileMeta($finalNcPath),
+                    'quality_report' => $fileMeta($reportPath),
+                ],
+                'ml_readiness' => [
+                    'final_oceanographic_dataset_ready' => $finalReady,
+                    'zppi_model_ready' => false,
+                    'reason' => $finalReady
+                        ? 'Dataset oseanografi siap sebagai fitur baseline, tetapi model ZPPI tetap butuh label/ground truth tangkapan.'
+                        : 'Dataset final belum lengkap. NOAA ERDDAP sempat mengembalikan 502 Proxy Error untuk beberapa request Chlorophyll-a.',
+                ],
+            ],
+            'meta' => [
+                'source' => 'local-noaa-pipeline-status',
+                'generated_at' => now()->toIso8601String(),
+            ],
         ]);
     }
 
@@ -240,7 +340,7 @@ class OceanDataController extends Controller
     private function geoJsonResponse(array $features, string $type, string $source, array $extraMeta = []): JsonResponse
     {
         $meta = array_merge([
-            'source' => $source, // mock | db-cache | ml-live
+            'source' => $source, // mock | db-cache | ml-live | demo-gresik
             'type' => $type, // zppi | hazard
             'count' => count($features),
             'generated_at' => now()->toIso8601String(),
@@ -258,28 +358,85 @@ class OceanDataController extends Controller
           ->header('X-Data-Source', $source);
     }
 
+    private function normalizeZppiMlFeatures(?array $payload): array
+    {
+        $items = $payload['data']['features'] ?? $payload['features'] ?? [];
+
+        return collect($items)->map(function ($item, $index) {
+            if (($item['type'] ?? null) === 'Feature') {
+                return $item;
+            }
+
+            $lat = (float) ($item['lat'] ?? $item['latitude']);
+            $lng = (float) ($item['lng'] ?? $item['lon'] ?? $item['longitude']);
+            $probability = (float) ($item['probability'] ?? $item['score'] ?? 0);
+
+            return [
+                'type' => 'Feature',
+                'geometry' => ['type' => 'Point', 'coordinates' => [$lng, $lat]],
+                'properties' => [
+                    'id' => $item['id'] ?? $index + 1,
+                    'probability' => $probability,
+                    'level' => $probability >= 0.7 ? 'high' : ($probability >= 0.45 ? 'medium' : 'low'),
+                    'zone_name' => $item['zone_name'] ?? $item['zone'] ?? 'Prediksi ZPPI',
+                    'sst' => $item['sst'] ?? null,
+                    'chlorophyll' => $item['chlorophyll'] ?? $item['chlor_a'] ?? null,
+                    'metadata' => $item['metadata'] ?? $item,
+                    'created_at' => now()->toIso8601String(),
+                    'valid_until' => now()->addHours(12)->toIso8601String(),
+                ],
+            ];
+        })->values()->all();
+    }
+
+    private function normalizeHazardMlFeatures(?array $payload): array
+    {
+        $items = $payload['data']['features'] ?? $payload['features'] ?? $payload['warnings'] ?? [];
+
+        return collect($items)->map(function ($item, $index) {
+            if (($item['type'] ?? null) === 'Feature') {
+                return $item;
+            }
+
+            $lat = (float) ($item['lat'] ?? $item['latitude']);
+            $lng = (float) ($item['lng'] ?? $item['lon'] ?? $item['longitude']);
+            $level = $item['warning_level'] ?? $item['level'] ?? 'medium';
+
+            return [
+                'type' => 'Feature',
+                'geometry' => ['type' => 'Point', 'coordinates' => [$lng, $lat]],
+                'properties' => [
+                    'id' => $item['id'] ?? $index + 1,
+                    'wave_height' => $item['wave_height'] ?? null,
+                    'wind_speed' => $item['wind_speed'] ?? null,
+                    'warning_level' => $level,
+                    'valid_until' => $item['valid_until'] ?? now()->addHours(12)->toIso8601String(),
+                    'is_active' => $item['is_active'] ?? true,
+                    'description' => $item['description'] ?? 'Peringatan bahaya laut',
+                    'source' => $item['source'] ?? 'ml_service',
+                    'metadata' => $item['metadata'] ?? $item,
+                    'created_at' => now()->toIso8601String(),
+                ],
+            ];
+        })->values()->all();
+    }
+
     /**
-     * Mock ZPPI — 10 titik realistis di perairan Indonesia.
+     * Demo ZPPI — titik contoh di perairan Gresik.
      * Coordinates GeoJSON: [lng, lat]
      */
     private function mockZppiFeatures(): array
     {
         $now = now()->toIso8601String();
         $raw = [
-            // Laut Jawa (dekat Jakarta/Indramayu)
-            ['lng' => 106.85, 'lat' => -6.15, 'prob' => 0.92, 'zone' => 'Laut Jawa Barat - Jakarta Bay', 'sst' => 29.8, 'chl' => 1.2],
-            ['lng' => 107.20, 'lat' => -6.35, 'prob' => 0.78, 'zone' => 'Laut Jawa Barat - Karawang', 'sst' => 29.2, 'chl' => 0.9],
-            ['lng' => 108.30, 'lat' => -5.95, 'prob' => 0.64, 'zone' => 'Laut Jawa Tengah - Cirebon', 'sst' => 28.9, 'chl' => 0.7],
-            ['lng' => 110.45, 'lat' => -6.00, 'prob' => 0.45, 'zone' => 'Laut Jawa Tengah - Semarang', 'sst' => 28.5, 'chl' => 0.5],
-            // Selat Bali & Lombok
-            ['lng' => 115.20, 'lat' => -8.40, 'prob' => 0.88, 'zone' => 'Selat Bali - Nusa Penida', 'sst' => 27.8, 'chl' => 1.5],
-            ['lng' => 116.10, 'lat' => -8.55, 'prob' => 0.71, 'zone' => 'Lombok Strait - Senggigi', 'sst' => 27.5, 'chl' => 1.1],
-            // Sulawesi / Makassar
-            ['lng' => 119.40, 'lat' => -5.10, 'prob' => 0.83, 'zone' => 'Selat Makassar - Takalar', 'sst' => 29.5, 'chl' => 0.95],
-            ['lng' => 118.80, 'lat' => -3.20, 'prob' => 0.52, 'zone' => 'Laut Flores - Polman', 'sst' => 28.7, 'chl' => 0.6],
-            // Sumatra Barat
-            ['lng' => 100.35, 'lat' => -0.95, 'prob' => 0.69, 'zone' => 'Pantai Barat Sumatra - Padang', 'sst' => 29.0, 'chl' => 0.85],
-            ['lng' => 104.45, 'lat' => -5.45, 'prob' => 0.34, 'zone' => 'Selat Sunda - Lampung', 'sst' => 28.3, 'chl' => 0.4],
+            ['lng' => 112.62, 'lat' => -6.75, 'prob' => 0.76, 'zone' => 'Gresik Utara - Ujung Pangkah', 'sst' => 30.1, 'chl' => 1.8],
+            ['lng' => 112.70, 'lat' => -6.98, 'prob' => 0.61, 'zone' => 'Perairan Manyar', 'sst' => 30.4, 'chl' => 2.2],
+            ['lng' => 112.67, 'lat' => -7.08, 'prob' => 0.48, 'zone' => 'Selat Madura sisi Gresik', 'sst' => 30.0, 'chl' => 1.1],
+            ['lng' => 112.45, 'lat' => -6.70, 'prob' => 0.57, 'zone' => 'Bungah - Sidayu Nearshore', 'sst' => 29.7, 'chl' => 1.5],
+            ['lng' => 112.46, 'lat' => -5.80, 'prob' => 0.72, 'zone' => 'Bawean Barat (Laut Lepas)', 'sst' => 29.2, 'chl' => 0.9],
+            ['lng' => 112.88, 'lat' => -5.66, 'prob' => 0.68, 'zone' => 'Bawean Timur Laut', 'sst' => 29.0, 'chl' => 0.8],
+            ['lng' => 112.45, 'lat' => -5.96, 'prob' => 0.43, 'zone' => 'Bawean Barat Daya', 'sst' => 29.4, 'chl' => 1.0],
+            ['lng' => 112.68, 'lat' => -6.35, 'prob' => 0.51, 'zone' => 'Koridor Bawean - Gresik', 'sst' => 29.6, 'chl' => 0.7],
         ];
 
         return array_map(function ($p, $i) use ($now) {
@@ -297,7 +454,12 @@ class OceanDataController extends Controller
                     'zone_name' => $p['zone'],
                     'sst' => $p['sst'],
                     'chlorophyll' => $p['chl'],
-                    'metadata' => ['sst' => $p['sst'], 'chlorophyll' => $p['chl'], 'zone' => $p['zone']],
+                    'metadata' => [
+                        'sst' => $p['sst'],
+                        'chlorophyll' => $p['chl'],
+                        'zone' => $p['zone'],
+                        'note' => 'Demo point, bukan hasil model ML operasional.',
+                    ],
                     'created_at' => $now,
                     'valid_until' => now()->addHours(12)->toIso8601String(),
                 ],
@@ -309,14 +471,11 @@ class OceanDataController extends Controller
     {
         $now = now();
         $raw = [
-            ['lng'=>106.88, 'lat'=>-6.32, 'wave'=>2.8, 'wind'=>22, 'level'=>'high',     'hours'=>8,  'desc'=>'Tinggi gelombang 2.8m — hindari perahu <10 GT', 'source'=>'bmkg'],
-            ['lng'=>108.10, 'lat'=>-6.00, 'wave'=>1.2, 'wind'=>12, 'level'=>'low',      'hours'=>24, 'desc'=>'Kondisi relatif aman', 'source'=>'bmkg'],
-            ['lng'=>110.20, 'lat'=>-5.80, 'wave'=>1.8, 'wind'=>16, 'level'=>'medium',   'hours'=>12, 'desc'=>'Waspada angin kencang sisi timur', 'source'=>'bmkg'],
-            ['lng'=>115.10, 'lat'=>-8.35, 'wave'=>3.6, 'wind'=>30, 'level'=>'extreme',  'hours'=>3,  'desc'=>'BADAI — SELAT BALI DITUTUP SEMENTARA', 'source'=>'manual'],
-            ['lng'=>119.50, 'lat'=>-5.00, 'wave'=>2.4, 'wind'=>19, 'level'=>'high',     'hours'=>6,  'desc'=>'Gelombang tinggi Selat Makassar', 'source'=>'bmkg'],
-            ['lng'=>116.00, 'lat'=>-8.60, 'wave'=>1.0, 'wind'=>10, 'level'=>'low',      'hours'=>-2, 'desc'=>'Sudah kadaluarsa (untuk test filter active)', 'source'=>'bmkg'], // kadaluarsa
-            ['lng'=>100.40, 'lat'=>-1.00, 'wave'=>2.1, 'wind'=>18, 'level'=>'medium',   'hours'=>10, 'desc'=>'Mentawai — waspada', 'source'=>'ml_model'],
-            ['lng'=>104.50, 'lat'=>-5.50, 'wave'=>3.0, 'wind'=>26, 'level'=>'high',     'hours'=>5,  'desc'=>'Selat Sunda — arus kuat', 'source'=>'bmkg'],
+            ['lng'=>112.64, 'lat'=>-6.80, 'wave'=>1.4, 'wind'=>13, 'level'=>'low',     'hours'=>24, 'desc'=>'Demo: kondisi relatif tenang di pesisir Ujung Pangkah', 'source'=>'demo'],
+            ['lng'=>112.68, 'lat'=>-7.11, 'wave'=>1.9, 'wind'=>17, 'level'=>'medium',  'hours'=>12, 'desc'=>'Demo: waspada arus dan lalu lintas kapal di Selat Madura', 'source'=>'demo'],
+            ['lng'=>112.42, 'lat'=>-5.82, 'wave'=>2.3, 'wind'=>20, 'level'=>'high',    'hours'=>8,  'desc'=>'Demo: gelombang meningkat di laut lepas barat Bawean', 'source'=>'demo'],
+            ['lng'=>112.88, 'lat'=>-5.68, 'wave'=>1.7, 'wind'=>15, 'level'=>'medium',  'hours'=>10, 'desc'=>'Demo: angin sedang di timur laut Bawean', 'source'=>'demo'],
+            ['lng'=>112.44, 'lat'=>-6.68, 'wave'=>0.9, 'wind'=>9,  'level'=>'low',     'hours'=>18, 'desc'=>'Demo: perairan dekat Sidayu relatif aman', 'source'=>'demo'],
         ];
 
         return array_map(function ($p, $i) use ($now) {

@@ -94,12 +94,42 @@ export default defineConfig({
                             },
                         },
                     },
-                    // --- Cache Carto Dark tiles (alternatif dark map) ---
+                    // --- Cache Carto Dark tiles (alternatif dark map v2) ---
                     {
                         urlPattern: /^https:\/\/.*\.basemaps\.cartocdn\.com\/.*/i,
                         handler: 'CacheFirst',
                         options: {
-                            cacheName: 'carto-tiles-cache',
+                            cacheName: 'carto-tiles-cache-v2',
+                            expiration: {
+                                maxEntries: 500,
+                                maxAgeSeconds: 60 * 60 * 24 * 30,
+                            },
+                            cacheableResponse: {
+                                statuses: [0, 200],
+                            },
+                        },
+                    },
+                    // --- Cache Esri World Dark Gray Base ---
+                    {
+                        urlPattern: /^https:\/\/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/Canvas\/World_Dark_Gray_Base\/MapServer\/tile\/.*/i,
+                        handler: 'CacheFirst',
+                        options: {
+                            cacheName: 'esri-dark-tiles-v2',
+                            expiration: {
+                                maxEntries: 500,
+                                maxAgeSeconds: 60 * 60 * 24 * 30,
+                            },
+                            cacheableResponse: {
+                                statuses: [0, 200],
+                            },
+                        },
+                    },
+                    // --- Cache ArcGIS World Imagery tiles untuk mode Sat ---
+                    {
+                        urlPattern: /^https:\/\/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/World_Imagery\/MapServer\/tile\/.*/i,
+                        handler: 'CacheFirst',
+                        options: {
+                            cacheName: 'arcgis-sat-tiles-v2',
                             expiration: {
                                 maxEntries: 500,
                                 maxAgeSeconds: 60 * 60 * 24 * 30,

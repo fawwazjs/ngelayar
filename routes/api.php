@@ -24,6 +24,9 @@ Route::prefix('v1/ocean-data')->name('api.v1.ocean-data.')->group(function () {
 
     // GET /api/v1/ocean-data/hazard?lat=&lng=&radius_km=&level=&active_only=
     Route::get('/hazard', [OceanDataController::class, 'hazard'])->name('hazard');
+
+    // GET /api/v1/ocean-data/noaa-status
+    Route::get('/noaa-status', [OceanDataController::class, 'noaaStatus'])->name('noaa-status');
 });
 
 // Health untuk API (dipakai PWA offline check)

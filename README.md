@@ -29,64 +29,65 @@ Build: `vite v5.4.21 ✓ 690 modules, 51 kB gzip, PWA 12 entries 637 KiB` — `p
 
 ---
 
-## 3. Perintah Terminal — Setup Awal
+## 3. Cara Menjalankan Project (Local Development)
 
 ### Prasyarat
-- PHP 8.2+, Composer 2.x, Node 18+/24, MySQL 8.0+ / MariaDB 10.4+ (XAMPP), Git
+- PHP 8.2+ & Composer 2.x
+- Node.js 18+ & NPM
+- MySQL 8.0+ / MariaDB 10.4+ (misal: XAMPP)
+- Git
 
-### A. Inisiasi Laravel 11 + Inertia
-```powershell
-composer create-project laravel/laravel ngelayar "^11.0"
-cd ngelayar
-composer update
-php artisan install:api
-composer require inertiajs/inertia-laravel
-php artisan inertia:middleware
-# bootstrap/app.php: ->withMiddleware(fn (Middleware $m) => $m->web(append:[HandleInertiaRequests::class]))
-```
+### Langkah Instalasi
 
-### B. Frontend
-```powershell
-npm install -D tailwindcss@^3.4 postcss autoprefixer
-npx tailwindcss init -p
-npm install react react-dom @inertiajs/react leaflet react-leaflet axios vite-plugin-pwa@^0.21
-npm install -D @vitejs/plugin-react@4.3.3 --legacy-peer-deps
-```
+1. **Clone Repositori:**
+   ```bash
+   git clone <url-repo-anda> ngelayar
+   cd ngelayar
+   ```
 
-### C. ENV
-```env
-APP_NAME=NGELAYAR
-APP_TIMEZONE=Asia/Jakarta
-APP_URL=http://localhost:8000
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=ngelayar_db
-DB_USERNAME=root
-DB_PASSWORD=
-DB_CHARSET=utf8mb4
-DB_COLLATION=utf8mb4_unicode_ci   # MariaDB; MySQL 8 pakai utf8mb4_0900_ai_ci
-ML_SERVICE_URL=http://localhost:8001
-ML_SERVICE_TIMEOUT=10
-ML_ENABLED=false
-VITE_APP_NAME="${APP_NAME}"
-```
-```powershell
-& "E:\xampp\mysql\bin\mysql.exe" -u root -e "CREATE DATABASE ngelayar_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-cp .env.example .env && php artisan key:generate
-php artisan migrate
-php artisan db:seed # opsional demo 5 ZPPI + 3 hazard
-```
+2. **Install Dependensi:**
+   ```bash
+   composer install
+   npm install
+   ```
 
-### D. Jalankan
-```powershell
-# Terminal 1
-php artisan serve          # http://localhost:8000
-# Terminal 2
-npm run dev                # Vite HMR
-# Prod
-npm run build && php artisan serve
-```
+3. **Setup Environment:**
+   ```bash
+   cp .env.example .env
+   php artisan key:generate
+   ```
+
+4. **Konfigurasi Database & API Key (`.env`):**
+   ```env
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=ngelayar_db
+   DB_USERNAME=root
+   DB_PASSWORD=
+
+   # API Key untuk layer map (Opsional, Default menggunakan Esri)
+   CARTO_API_KEY=your_api_key_here
+   ```
+
+5. **Buat Database & Migrasi:**
+   Buat database bernama `ngelayar_db` di MySQL, lalu jalankan perintah berikut:
+   ```bash
+   php artisan migrate
+   php artisan db:seed  # Menambahkan data dummy ZPPI & Hazard
+   ```
+
+6. **Jalankan Aplikasi:**
+   Buka dua terminal dan jalankan perintah berikut:
+   ```bash
+   # Terminal 1: Compile asset (Gunakan npm run dev untuk development)
+   npm run build
+   
+   # Terminal 2: Jalankan server Laravel
+   php artisan serve
+   ```
+
+7. Buka browser Anda dan akses: **http://localhost:8000**
 
 ---
 
